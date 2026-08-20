@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: maseray-whatsapp-webhook
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: VERIFY_TOKEN
+        sync: false
