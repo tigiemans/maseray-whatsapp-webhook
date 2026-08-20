@@ -6,7 +6,10 @@ const crypto = require("crypto");
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const DATABASE_URL = process.env.DATABASE_URL;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "change-this-webhook-token";
+// Render was configured with VERIFY-TOKEN (hyphen), while the original code
+// only read VERIFY_TOKEN (underscore). Support both names so Meta's webhook
+// verification uses the token actually configured in Render.
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || process.env["VERIFY-TOKEN"] || process.env.WHATSAPP_VERIFY_TOKEN || "change-this-webhook-token";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
 const WHATSAPP_GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
@@ -148,7 +151,18 @@ app.get("/api/reports/summary", async (req, res) => {
   catch { res.status(500).json({ error: "Could not load summary." }); }
 });
 
-app.get("/webhook/whatsapp", (req, res) => { if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === VERIFY_TOKEN && req.query["hub.challenge"]) return res.status(200).send(req.query["hub.challenge"]); res.sendStatus(403); });
+// Meta's webhook handshake: the verify token is only used on this GET request.
+app.get("/webhook/whatsapp", (req, res) => {
+  const mode = String(req.query["hub.mode"] || "");
+  const token = String(req.query["hub.verify_token"] || "");
+  const challenge = String(req.query["hub.challenge"] || "");
+  if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
+    console.log("WhatsApp webhook verification succeeded.");
+    return res.status(200).type("text/plain").send(challenge);
+  }
+  console.warn("WhatsApp webhook verification rejected: token mismatch or missing challenge.");
+  return res.sendStatus(403);
+});
 
 app.post("/webhook/whatsapp", async (req, res) => {
   if (!verifyWhatsAppSignature(req)) return res.sendStatus(403); res.sendStatus(200);
@@ -171,6 +185,7 @@ app.get("/{*splat}", (req, res) => res.sendFile(path.join(__dirname, "..", "publ
 
 async function start() {
   await initDatabase();
+  console.log(`WhatsApp webhook verification token configured: ${VERIFY_TOKEN !== "change-this-webhook-token" ? "yes" : "no"}`);
   const server = app.listen(PORT, "0.0.0.0", () => console.log(`Maseray Temne Blogger running on port ${PORT}`));
   function shutdown(signal) { console.log(`${signal}: shutting down`); server.close(async () => { await pool.end(); process.exit(0); }); }
   process.on("SIGTERM", () => shutdown("SIGTERM"));
