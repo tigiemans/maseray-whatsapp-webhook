@@ -12,7 +12,9 @@ const db = new Database(path.join(dataDir, "maseray.db"));
 db.pragma("journal_mode = WAL");
 db.exec(`CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT NOT NULL UNIQUE,membership_number TEXT NOT NULL UNIQUE,monthly_contribution REAL NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS contributions (id INTEGER PRIMARY KEY AUTOINCREMENT,member_id INTEGER NOT NULL,contribution_month TEXT NOT NULL,amount REAL NOT NULL,status TEXT NOT NULL DEFAULT 'unpaid',payment_reference TEXT,paid_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(member_id, contribution_month),FOREIGN KEY(member_id) REFERENCES members(id));`);
 if (db.prepare("SELECT COUNT(*) c FROM members").get().c === 0) db.prepare("INSERT INTO members(name,phone,membership_number,monthly_contribution) VALUES(?,?,?,?)").run("Demo Member","23200000000","MTB-001",100);
-app.use(express.json()); app.use(express.urlencoded({extended:true})); app.use(express.static(path.join(__dirname,"..","public")));
+app.use(express.json());
+app.use(express.urlencoded({extended:true}));
+app.use(express.static(path.join(__dirname,"..","public")));
 const cleanPhone = (phone="") => String(phone).replace(/\D/g, "");
 const memberByPhone = phone => db.prepare("SELECT * FROM members WHERE phone=? AND active=1").get(cleanPhone(phone));
 app.get("/api/health", (req,res)=>res.json({ok:true,service:"maseray-whatsapp-webhook"}));
@@ -27,4 +29,4 @@ app.get("/api/reports/summary",(req,res)=>res.json({active_members:db.prepare("S
 app.get("/webhook/whatsapp",(req,res)=>{if(req.query["hub.mode"]==="subscribe"&&req.query["hub.verify_token"]===VERIFY_TOKEN)return res.status(200).send(req.query["hub.challenge"]);res.sendStatus(403)});
 app.post("/webhook/whatsapp",(req,res)=>{res.sendStatus(200);try{const value=req.body?.entry?.[0]?.changes?.[0]?.value;const message=value?.messages?.[0];if(!message)return;const phone=cleanPhone(message.from);const member=memberByPhone(phone);console.log("WhatsApp message",{phone,memberName:member?.name||null,type:message.type});}catch(e){console.error("Webhook error",e)}});
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"..","public","index.html")));
-app.listen(PORT,()=>console.log(`Maseray Temne Blogger running on port ${PORT}`));
+app.listen(PORT,"0.0.0.0",()=>console.log(`Maseray Temne Blogger running on port ${PORT}`));
