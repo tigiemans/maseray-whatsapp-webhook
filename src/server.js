@@ -165,13 +165,16 @@ app.post("/webhook/whatsapp", async (req, res) => {
   } catch (error) { console.error("Webhook processing error", error); }
 });
 
-app.get("*", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "index.html")));
+// Express 5 requires wildcard route parameters to be named.
+// The { *splat } form also matches the root path so the dashboard loads correctly.
+app.get("/{*splat}", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "index.html")));
 
 async function start() {
   await initDatabase();
   const server = app.listen(PORT, "0.0.0.0", () => console.log(`Maseray Temne Blogger running on port ${PORT}`));
   function shutdown(signal) { console.log(`${signal}: shutting down`); server.close(async () => { await pool.end(); process.exit(0); }); }
-  process.on("SIGTERM", () => shutdown("SIGTERM")); process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 start().catch(error => { console.error("Startup failed", error); process.exit(1); });
 module.exports = { app, pool, cleanPhone };
